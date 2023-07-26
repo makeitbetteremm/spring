@@ -6,6 +6,8 @@ public class Test {
     public static void main(String[] args) {
         UserApplicationContext  applicationContext = new UserApplicationContext(AppConfig.class);
 
-        Object userService = applicationContext.getBean("userService");
+        UserService userService = (UserService) applicationContext.getBean("userService");
+        userService.test();
+
     }
 }
