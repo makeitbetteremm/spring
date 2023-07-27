@@ -5,6 +5,8 @@ import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -12,6 +14,8 @@ public class UserApplicationContext {
     private Class configClass;
     private ConcurrentHashMap<String, BeanDefinition> beanDefinitionHashMap = new ConcurrentHashMap<>();
     private ConcurrentHashMap<String, Object> beanMap = new ConcurrentHashMap<>();
+
+    private List<BeanPostProcessor> beanPostProcessorList = new ArrayList<>();
     private String singletonStr = "singleton";
 
 
@@ -40,6 +44,14 @@ public class UserApplicationContext {
                         try {
                             Class<?> clazz = classLoader.loadClass(className);
                             if (clazz.isAnnotationPresent(Component.class)) {
+
+                                // 添加BeanPostProcessor
+                                if (BeanPostProcessor.class.isAssignableFrom(clazz)) {
+                                    BeanPostProcessor beanPostProcessor = (BeanPostProcessor) clazz.getConstructor().newInstance();
+                                    beanPostProcessorList.add(beanPostProcessor);
+                                }
+
+                                // 添加BeanDefinition
                                 Component component = clazz.getAnnotation(Component.class);
                                 String beanName = component.value();
                                 if ("".equals(beanName)) {
@@ -57,6 +69,14 @@ public class UserApplicationContext {
                                 beanDefinitionHashMap.put(beanName, beanDefinition);
                             }
                         } catch (ClassNotFoundException e) {
+                            throw new RuntimeException(e);
+                        } catch (InvocationTargetException e) {
+                            throw new RuntimeException(e);
+                        } catch (InstantiationException e) {
+                            throw new RuntimeException(e);
+                        } catch (IllegalAccessException e) {
+                            throw new RuntimeException(e);
+                        } catch (NoSuchMethodException e) {
                             throw new RuntimeException(e);
                         }
 
@@ -92,6 +112,21 @@ public class UserApplicationContext {
 
             if (instance instanceof BeanNameAware) {
                 ((BeanNameAware) instance).setBeanName(beanName);
+            }
+
+            // BeanPost before
+            for (BeanPostProcessor b : beanPostProcessorList) {
+               instance = b.postProcessorBeforeInitialization(beanName,instance);
+            }
+
+            // 初始化
+            if (instance instanceof InitializingBean) {
+                ((InitializingBean) instance).afterPropertiesSet();
+            }
+
+            // BeanPost after
+            for (BeanPostProcessor b : beanPostProcessorList) {
+               instance = b.postProcessorAfterInitialization(beanName,instance);
             }
 
             return instance;
